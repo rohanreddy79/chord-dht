@@ -11,7 +11,7 @@ open Akka.Actor
 open Akka.FSharp
 open System.Threading
 
-// Using 160 bit identifiers so we have 2^60 keys 
+// Using 160 bit identifiers so we have 2^160 keys 
 // and we randomly generate noOfPeers ids and make them nodes.
 // and randomly generate noOfReqs ids and find them to calulcate hops
 
@@ -134,7 +134,7 @@ module mainFunction =
                     successor <- dummyValue; predecessor <- dummyValue
             
             | FindSuccessor(startingPeerID, key,query,fingerIndex,hops) ->
-                let found = ((peerID < successor) && ((key > peerID) && (key <= successor)) || ((key > peerID) || (key <= successor)))
+                let found = ((peerID < successor) && ((key > peerID) && (key <= successor))) || ((peerID >= successor) && ((key > peerID) || (key <= successor)))
                 if found then
                     let originPeerRef = system.ActorSelection(akkaRouting + string(startingPeerID))
                     if query = 1 then originPeerRef <! FoundSuccessor(successor)
@@ -144,7 +144,9 @@ module mainFunction =
                     let ans = 
                         fingersTable |> Seq.tryFindBack(fun (s: bigint) -> 
                             (s <> dummyValue && ((peerID >= key && (s > peerID || ((s < peerID) && (s < key)))) || ((s > peerID) && (s < key)))))
-                    let nextSuccessor = (if ans.IsNone then peerID else ans.Value)
+                    // closest preceding finger, else the successor (finger 1 in the paper);
+                    // only a peer that has not joined yet retries at itself
+                    let nextSuccessor = (if ans.IsSome then ans.Value elif successor <> dummyValue then successor else peerID)
                     let successorPeer = system.ActorSelection(akkaRouting + string(nextSuccessor))
                     successorPeer <! FindSuccessor(startingPeerID,key,query,fingerIndex,hops+1)
             
@@ -241,7 +243,6 @@ let funcSync =
 
 
 
-let mutable x = 1
 let nextPeer = numberGenerator.nRandomForId noOfPeers
 
 let peerActor = spawn system (string(nextPeer.[0])) <| mainFunction.peer
@@ -262,6 +263,10 @@ for i in 1..nextPeer.Length - 1 do
 //     p <! FingersToBeFixed
 
 
+// let the ring stabilise before measuring hops: two full fix_fingers passes (160 fingers x 100 ms ticks).
+// Fingers fixed during the first pass, while the ring is still forming, are refreshed by the second.
+Thread.Sleep (2 * 160 * 100)
+
 let requests = numberGenerator.nRandomForId noOfReqs
 
 for i in 0..nextPeer.Length - 1 do
@@ -271,4 +276,10 @@ for i in 0..nextPeer.Length - 1 do
 
 // do not terminate the program till we find the ans
 while not stop do
-    x <- 1
+    Thread.Sleep 50
+
+// stop the maintenance loops and shut the actor system down so the process exits
+cancel.Cancel()
+fingerCancel.Cancel()
+system.Terminate().Wait()
+

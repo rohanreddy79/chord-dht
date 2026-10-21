@@ -1,6 +1,6 @@
 # Chord Distributed Hash Table Simulator
 
-[![CI](https://github.com/rohanreddy79/Chord-distributed-hash-table-/actions/workflows/ci.yml/badge.svg)](https://github.com/rohanreddy79/Chord-distributed-hash-table-/actions/workflows/ci.yml)
+[![CI](https://github.com/rohanreddy79/chord-dht/actions/workflows/ci.yml/badge.svg)](https://github.com/rohanreddy79/chord-dht/actions/workflows/ci.yml)
 
 **An F# / Akka.NET simulation of the Chord peer-to-peer lookup protocol: peers with 160-bit SHA-1 identifiers join a ring, maintain successor pointers and finger tables, and the program reports the average number of hops a key lookup takes.**
 
